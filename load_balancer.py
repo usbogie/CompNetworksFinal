@@ -1,10 +1,8 @@
 import multiprocessing
 import socket
 
-
 def parse_data_for_ip(data):
     return data.split('\n')[1]
-
 
 def handle(connection, address):
     import logging
