@@ -10,15 +10,17 @@ server_ip = raw_input("Input server address: ")
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 server_address = (server_ip, 9000)
+SAMPLE_SIZE = 5
+INTERVAL = 1
 
 try:
 
     while True:
         # Send data
         sum = 0
-        for i in range(10):
-            sum += psutil.cpu_percent(interval=10)
-        cpu_avg = float(sum/10)
+        for i in range(SAMPLE_SIZE):
+            sum += psutil.cpu_percent(interval=INTERVAL)
+        cpu_avg = float(sum/SAMPLE_SIZE)
         instance_id = subprocess.check_output(['wget', '-q',
                                                '-O', '-',
                                                'http://instance-data/latest/meta-data/instance-id'])

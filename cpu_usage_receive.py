@@ -1,17 +1,24 @@
 import socket
 import boto3
+import pprint
+from threading import Thread
 
 live_cpus = {}
 instance_IPs = {}
 
+pp = pprint.PrettyPrinter(indent=2)
 
 def update(message):
     instance, tempIP, new_val = message.split('|')
-    IP = tempIP.split('-')[1:].join('.')
-    old_val = live_cpus[IP][0]
-    live_cpus[IP] = (new_val,old_val)
+    IP = ".".join(tempIP.split('-')[1:])
+    if IP not in live_cpus:
+        live_cpus[IP] = (new_val, -1)
+    else:
+        old_val = live_cpus[IP][0]
+        live_cpus[IP] = (new_val,old_val)
     instance_IPs[IP] = instance
-
+    pp.pprint(instance_IPs)
+    pp.pprint(live_cpus)
 
 def check_activity():
     ec2 = boto3.resource('ec2')
@@ -54,13 +61,7 @@ def receive_cpu_usage():
 
 
 def choose_cpu():
-    min = 0
-    instance_ip = ''
-    for ip in live_cpus:
-        if live_cpus[ip] < min:
-            min = live_cpus[ip]
-            instance_ip = ip
-    return instance_ip
+    return min(live_cpus, key=live_cpus.get)
 
 
 def load_balance():
@@ -80,5 +81,12 @@ def load_balance():
 
         if data:
             ip_dst = choose_cpu()
-            sent = sock.sendto(data + "|" + str(ip_dst), address)
-            print 'sent %s bytes back to %s' % (sent, address)
+            msg = data + "|" + str(ip_dst) + "|20000"
+            sock.sendto(msg, address)
+            print 'sent %s back to %s' % (msg, address)
+
+
+usage_monitor = Thread(target=receive_cpu_usage)
+load_balancer = Thread(target=load_balance)
+usage_monitor.start()
+load_balancer.start()

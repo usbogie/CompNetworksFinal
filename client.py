@@ -15,17 +15,22 @@ try:
 
     while True:
         # Send data
-        message = raw_input("input message")
+        message = raw_input("input message: ")
         print sys.stderr, 'sending "%s"' % message
         sent = sock.sendto(message, server_address)
 
         # Receive response
-        print sys.stderr, 'waiting to receive'
+        print 'waiting to receive'
         data, server = sock.recvfrom(4096)
-        print sys.stderr, 'received "%s"' % data
-        message, ip_dst = data.split("|")
-        new_address = (str(ip_dst), server_address[1])
+        print 'received "%s"' % data
+        message, ip_dst, port = data.split("|")
+        new_address = (str(ip_dst), int(port))
         sock.sendto(message, new_address)
+
+        print '\nwaiting to receive message'
+        data, address = sock.recvfrom(4096)
+        print 'received %s from %s' % (data, address)
+
 
 finally:
     print sys.stderr, 'closing socket'
