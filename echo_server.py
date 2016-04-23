@@ -1,20 +1,29 @@
 import socket
 
+ECHO_PORT = 20000
+
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # Bind the socket to the port
-server_address = ('0.0.0.0', 20000)
+server_address = ('0.0.0.0', ECHO_PORT)
 print 'starting up on %s port %s' % server_address
 sock.bind(server_address)
 
-while True:
-    print '\nwaiting to receive message'
-    data, address = sock.recvfrom(4096)
+# Simple UDP echo server
+try:
+    while True:
+        print '\nwaiting to receive message'
+        data, address = sock.recvfrom(4096)
 
-    print 'received %s bytes from %s' % (len(data), address)
-    print data
+        print 'received %s bytes from %s' % (len(data), address)
+        print data
 
-    if data:
-        sent = sock.sendto(data, address)
-        print 'sent %s bytes back to %s' % (sent, address)
+        if data:
+            sent = sock.sendto(data, address)
+            print 'sent %s bytes back to %s' % (sent, address)
+except:
+    print 'ECHO SERVER EXCEPTION'
+finally:
+    print 'Disconnecting Echo Server'
+    sock.close()
