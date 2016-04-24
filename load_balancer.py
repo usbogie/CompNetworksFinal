@@ -12,6 +12,18 @@ instance_IPs = {}
 
 pp = pprint.PrettyPrinter(indent=2)
 
+
+def run_front_end():
+    num_of_cpus = len(live_cpus)
+    print '\n--------------------------'
+    print 'Number of live CPUs: ' + str(num_of_cpus)
+    for IP in live_cpus:
+        print '\t-----'
+        print '\tInstance at IP ' + str(IP) + ':'
+        print '\tid:\t\t' + str(instance_IPs[IP])
+        print '\tCPU usage:\t' + str(live_cpus[IP])
+
+
 def update(message):
     instance, tempIP, new_val = message.split('|')
     IP = ".".join(tempIP.split('-')[1:])
@@ -35,9 +47,9 @@ def update(message):
         live_cpus[IP] = (new_val,old_val)
 
     instance_IPs[IP] = instance
-    #TODO logging info, remove at end
-    pp.pprint(instance_IPs)
-    pp.pprint(live_cpus)
+    run_front_end()
+
+
 
 def check_activity():
     ec2 = boto3.resource('ec2')
@@ -56,6 +68,15 @@ def check_activity():
         instance_to_launch = instances[0]
         instance_to_launch.start()
 
+#TODO maybe split ^method and this method into two?
+# using this will just shutdown one idle CPU at a time
+# upon its next usage transmission
+def check_shutdown():
+    for ip in live_cpus:
+        old_val = float(live_cpus[ip][1])
+        new_val = float(live_cpus[ip][0])
+        if old_val==new_val and old_val==0.0:
+            return ip
 
 def receive_cpu_usage():
     # Create a UDP socket
@@ -63,22 +84,23 @@ def receive_cpu_usage():
 
     # Bind the socket to the port
     server_address = ('0.0.0.0', METRICS_PORT)
-    print 'starting up on %s port %s' % server_address
+    print 'Starting up metrics monitor at %s on port %s' % server_address
     sock.bind(server_address)
     try:
         while True:
-            print '\nwaiting to receive message'
             data, address = sock.recvfrom(4096)
-
-            print 'received \"%s\" from %s' % (data, address)
 
             # Update the live_cpus and instance_ips information
             # based on incoming message contents
-            update(data)
-
             if data:
-                sent = sock.sendto(data, address)
-                print 'sent %s bytes back to %s' % (sent, address)
+                update(data)
+                instance, tempIP, new_val = data.split('|')
+                to_shut_down = check_shutdown()
+                if to_shut_down == ".".join(tempIP.split('-')[1:]):
+                    print 'sending shutdown'
+                    sock.sendto('shutdown', address)
+                else:
+                    sock.sendto(data, address)
     except:
         print 'METRICS SOCKET EXCEPTION'
     finally:
@@ -90,15 +112,11 @@ def load_balance():
 
     # Bind the socket to the port
     server_address = ('0.0.0.0', LOAD_BALANCE_PORT)
-    print 'starting up on %s port %s' % server_address
+    print 'Starting up load balancer at %s on port %s' % server_address
     sock.bind(server_address)
     try:
         while True:
-            print '\nwaiting to receive message'
             data, address = sock.recvfrom(4096)
-
-            print 'received \"%s\" from %s' % (data, address)
-
             if data:
 
                 # Finds instance with lowest CPU usage

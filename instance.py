@@ -2,19 +2,23 @@ __author__ = 'adamg'
 import socket
 import sys
 import psutil
-import subprocess
 from threading import Thread
+import threading
+import subprocess
 
-SAMPLE_SIZE = 5
+SAMPLE_SIZE = 3
 INTERVAL = 1
 ECHO_PORT = 20000
 
 def send_metrics():
+
+    #TODO make static?
     server_ip = raw_input("Input server address: ")
 
     # Create a UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_address = (server_ip, 9000)
+    print 'starting up metrics sending at %s on port %s' % server_address
 
     try:
         while True:
@@ -37,23 +41,28 @@ def send_metrics():
             sent = sock.sendto(message, server_address)
 
             # Receive response/acknowledgement
-            print 'waiting to receive'
+            print 'waiting to receive...'
             data, server = sock.recvfrom(4096)
-            print 'received "%s"' % data
+            if 'shutdown' in data:
+                print 'shutting down'
+                # Get instance ID
+                instance_id = subprocess.check_output(['wget', '-q',
+                                                       '-O', '-',
+                                                       'http://instance-data/latest/meta-data/instance-id'])
+
+                # Compose disconnect message, and disconnect
+                message = instance_id + "|" + socket.gethostname() + "|disconnect"
+                sock.sendto(message, server_address)
+                subprocess.call(['killall', 'python'])
+            else:
+                print '\t\treceived acknowledgement\n'
+
     except:
         print 'SEND_METRICS EXCEPTION'
 
     # Disconnects with any ungraceful exit such as CTRL-C
     finally:
-        # Get instance ID
-        instance_id = subprocess.check_output(['wget', '-q',
-                                               '-O', '-',
-                                               'http://instance-data/latest/meta-data/instance-id'])
-
-        # Compose disconnect message, and disconnect
-        message = instance_id + "|" + socket.gethostname() + "|disconnect"
-        sock.sendto(message, server_address)
-        print sys.stderr, 'closing socket'
+        print 'Closing socket'
         sock.close()
 
 
@@ -63,7 +72,7 @@ def run_echo_server():
 
     # Bind the socket to the port
     server_address = ('0.0.0.0', ECHO_PORT)
-    print 'starting up on %s port %s' % server_address
+    print 'starting up echo server at %s on port %s' % server_address
     sock.bind(server_address)
 
     # Simple UDP echo server
@@ -83,9 +92,10 @@ def run_echo_server():
     finally:
         print 'Disconnecting Echo Server'
         sock.close()
+        threading.currentThread().join()
 
 if __name__ == "__main__":
     usage_sender = Thread(target=send_metrics)
     echo_server = Thread(target=run_echo_server)
-    usage_sender.start()
     echo_server.start()
+    usage_sender.start()
