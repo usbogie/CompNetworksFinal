@@ -6,14 +6,14 @@ from threading import Thread
 import threading
 import subprocess
 
-SAMPLE_SIZE = 3
+SAMPLE_SIZE = 10
 INTERVAL = 1
 ECHO_PORT = 20000
 
+
 def send_metrics():
 
-    #TODO make static?
-    server_ip = raw_input("Input server address: ")
+    server_ip = '52.90.132.42'
 
     # Create a UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -28,7 +28,7 @@ def send_metrics():
             sum = 0
             for i in range(SAMPLE_SIZE):
                 sum += psutil.cpu_percent(interval=INTERVAL)
-            cpu_avg = float(sum/SAMPLE_SIZE)
+            cpu_avg = float(sum / SAMPLE_SIZE)
 
             # Get instance ID with shell 'wget' call
             instance_id = subprocess.check_output(['wget', '-q',
@@ -93,6 +93,7 @@ def run_echo_server():
         print 'Disconnecting Echo Server'
         sock.close()
         threading.currentThread().join()
+
 
 if __name__ == "__main__":
     usage_sender = Thread(target=send_metrics)

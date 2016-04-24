@@ -5,8 +5,8 @@ import psutil
 import time
 import subprocess
 
-#TODO make static once finished?
-server_ip = raw_input("Input server address: ")
+# TODO make static once finished?
+server_ip = '52.90.132.42'
 
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -17,7 +17,7 @@ try:
 
     while True:
         # Send data
-        message = raw_input("input message: ")  #TODO make static once finished?
+        message = raw_input("input message: ")  # TODO make static once finished?
         print 'sending "%s"' % message
         sent = sock.sendto(message, server_address)
 
