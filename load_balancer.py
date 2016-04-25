@@ -3,8 +3,13 @@ import boto3
 import pprint
 import traceback
 import sys
+import time
+import os
 
 from threading import Thread
+
+os.environ['TZ'] = 'CST+06CDT,M4.1.0,M10.5.0'
+time.tzset()
 
 LOAD_BALANCE_PORT = 10000
 METRICS_PORT = 9000
@@ -19,18 +24,17 @@ pp = pprint.PrettyPrinter(indent=2)
 
 def run_front_end():
     num_of_cpus = len(live_cpus)
-    print '\n--------------------------'
+    print '\n-------------' + time.strftime('%X %x %Z') + '---------------'
     print 'Number of live CPUs: ' + str(num_of_cpus)
     for IP in live_cpus:
-        print '\t-----'
+        print '\t--------------------'
         print '\tInstance at IP ' + str(IP) + ':'
         print '\tid:\t\t' + str(instance_IPs[IP])
         print '\tCPU usage:\t' + str(live_cpus[IP])
 
 
 def update(message):
-    instance, tempIP, new_val = message.split('|')
-    IP = ".".join(tempIP.split('-')[1:])
+    instance, IP, new_val = message.split('|')
     # Instance has disconencted
     if "disconnect" in new_val:
         try:
@@ -60,18 +64,22 @@ def update(message):
 def check_startup():
     need_to_launch = True
     for cpu in live_cpus:
-        new_val = live_cpus[cpu][0]
-        old_val = live_cpus[cpu][1]
-        if not (new_val > old_val and new_val > 50):
+        new_val = float(live_cpus[cpu][0])
+        old_val = float(live_cpus[cpu][1])
+        if not (new_val > 70 and old_val > 70) or old_val < 0:
             need_to_launch = False
     if need_to_launch:
         try:
-            print "Launching New Instance."
-            instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['stopped']}])
-            instance_to_launch = instances[0]
-            instance_to_launch.start()
+            print "Attempting to launch new instance..."
+            instances = list(ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['stopped']}]))
+            if instances:
+                instance_to_launch = instances[0]
+                instance_to_launch.start()
+            else:
+                print 'All instances running. No further instances to launch.'
         except:
             print "Error launching"
+            print traceback.print_exc()
 
 
 # using this will just shutdown one idle CPU at a time
@@ -99,13 +107,19 @@ def receive_cpu_usage():
             # Update the live_cpus and instance_ips information
             # based on incoming message contents
             if data:
+                print '\nreceived message: ' + data
                 update(data)
-                instance, tempIP, new_val = data.split('|')
-                if len(live_cpus) == -1 + len(
-                        list(ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]))):
+                instance, IP, new_val = data.split('|')
+                """
+                live_cpu_len = len(live_cpus)
+                instances = list(ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]))
+                instances_len = -1 + len(instances)
+                #print live_cpu_len, instances, instances_len
+                if live_cpu_len == instances_len:
                     check_startup()
+                """
                 to_shut_down = check_shutdown()
-                if to_shut_down == ".".join(tempIP.split('-')[1:]) and len(live_cpus) > 1:
+                if to_shut_down == IP and len(live_cpus) > 1:
                     print 'sending shutdown'
                     sock.sendto('shutdown', address)
                 else:
@@ -117,6 +131,10 @@ def receive_cpu_usage():
         print 'Closing metrics socket...'
         sock.close()
 
+def startup_check_cycle():
+    while True:
+        time.sleep(45)
+        check_startup()
 
 def load_balance():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -147,5 +165,7 @@ def load_balance():
 if __name__ == "__main__":
     usage_monitor = Thread(target=receive_cpu_usage)
     load_balancer = Thread(target=load_balance)
+    startup_check = Thread(target=startup_check_cycle)
     usage_monitor.start()
     load_balancer.start()
+    startup_check.start()

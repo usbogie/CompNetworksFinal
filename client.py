@@ -6,7 +6,7 @@ import time
 import subprocess
 
 # TODO make static once finished?
-server_ip = '52.90.132.42'
+server_ip = '54.85.143.180'
 
 # Create a UDP socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

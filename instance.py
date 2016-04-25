@@ -6,19 +6,19 @@ from threading import Thread
 import threading
 import subprocess
 
-SAMPLE_SIZE = 10
+SAMPLE_SIZE = 7
 INTERVAL = 1
 ECHO_PORT = 20000
 
 
 def send_metrics():
 
-    server_ip = '52.90.132.42'
+    server_ip = '54.85.143.180'
 
     # Create a UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_address = (server_ip, 9000)
-    print 'starting up metrics sending at %s on port %s' % server_address
+    print 'starting up metrics sending to %s on port %s' % server_address
 
     try:
         while True:
@@ -36,7 +36,9 @@ def send_metrics():
                                                    'http://instance-data/latest/meta-data/instance-id'])
 
             # Compose and send CPU usage message to load balancer
-            message = instance_id + "|" + socket.gethostname() + "|" + str(cpu_avg)
+            from urllib2 import urlopen
+            my_ip = urlopen('http://ip.42.pl/raw').read()
+            message = instance_id + "|" + my_ip + "|" + str(cpu_avg)
             print 'sending "%s"' % message
             sent = sock.sendto(message, server_address)
 
@@ -51,7 +53,7 @@ def send_metrics():
                                                        'http://instance-data/latest/meta-data/instance-id'])
 
                 # Compose disconnect message, and disconnect
-                message = instance_id + "|" + socket.gethostname() + "|disconnect"
+                message = instance_id + "|" + urlopen('http://ip.42.pl/raw').read() + "|disconnect"
                 sock.sendto(message, server_address)
                 subprocess.call(['killall', 'python'])
             else:
@@ -85,14 +87,30 @@ def run_echo_server():
             print data
 
             if data:
+                if "fib=" in data:
+                    num = int(data.split('|')[0].split('=')[1])
+                    if num < 40:
+                        data += ", result: " + str(fibonacci(num)) + " in background process."
+                    else:
+                        data += "--ERROR: number too large to compute."
                 sent = sock.sendto(data, address)
                 print 'sent %s bytes back to %s' % (sent, address)
+            else:
+                sock.sendto("Received empty message", address)
     except:
         print 'ECHO SERVER EXCEPTION'
     finally:
         print 'Disconnecting Echo Server'
         sock.close()
         threading.currentThread().join()
+
+def fibonacci(i):
+    if i == 0:
+        return 1
+    if i == 1:
+        return 1
+    else:
+        return fibonacci(i-2) + fibonacci(i-1)
 
 
 if __name__ == "__main__":
